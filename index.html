@@ -1016,6 +1016,584 @@ func generateThumbnails(_ urls: [URL]) {
 </div>
 `}
 
+,
+{name:"기본 7대 질문 (ARC 첫 인터뷰 단골)",icon:"blue",
+detail:`
+<h5>1. ARC가 무엇이고, Swift에서 메모리 관리를 어떻게 해주나요?</h5>
+<p><b>ARC = Automatic Reference Counting.</b> 컴파일 타임에 컴파일러가 코드를 분석해서 <code>retain</code>(참조 카운트 +1)과 <code>release</code>(참조 카운트 -1) 호출을 자동으로 삽입해주는 메모리 관리 시스템입니다.</p>
+<p>핵심 원리: "참조하는 곳이 몇 개인지 세고, 0이 되면 즉시 해제"</p>
+<pre>// 우리가 작성한 코드:
+func process() {
+    let user = User(name: "철수")
+    print(user.name)
+}
+
+// 컴파일러가 실제로 변환한 코드 (의사 코드):
+func process() {
+    let user = User(name: "철수")  // retain → count=1
+    print(user.name)
+    // release → count=0 → deinit 호출 → 메모리 해제
+}</pre>
+<p>GC와 다른 점: ARC는 컴파일 타임에 결정되어 즉시 해제(deterministic), GC는 런타임에 주기적으로 수집(non-deterministic). ARC는 GC pause가 없어서 모바일에 적합합니다.</p>
+
+<h5>2. ARC는 어떤 타입에 적용되나요? struct, enum, class 중 어디에?</h5>
+<p><b>ARC는 reference type(class, closure, actor)에만 적용됩니다.</b></p>
+<table style="width:100%;font-size:13px;border-collapse:collapse;margin:10px 0">
+<tr style="background:var(--g1)"><th style="padding:10px;text-align:left">타입</th><th style="padding:10px;text-align:left">ARC 적용?</th><th style="padding:10px;text-align:left">메모리 관리</th></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">struct</td><td style="padding:10px;border-top:1px solid var(--g2)">❌</td><td style="padding:10px;border-top:1px solid var(--g2)">스택 자동 해제 (스코프 끝)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">enum</td><td style="padding:10px;border-top:1px solid var(--g2)">❌</td><td style="padding:10px;border-top:1px solid var(--g2)">스택 자동 해제</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">class</td><td style="padding:10px;border-top:1px solid var(--g2)">✅</td><td style="padding:10px;border-top:1px solid var(--g2)">힙 + 참조 카운팅</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">closure</td><td style="padding:10px;border-top:1px solid var(--g2)">✅ (값 캡처 시)</td><td style="padding:10px;border-top:1px solid var(--g2)">힙 (closure context)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">actor</td><td style="padding:10px;border-top:1px solid var(--g2)">✅</td><td style="padding:10px;border-top:1px solid var(--g2)">힙 (참조 타입)</td></tr>
+</table>
+<p>주의: struct 안에 class 프로퍼티가 있으면, 그 class 프로퍼티는 ARC 적용. struct 자체는 아님.</p>
+
+<h5>3. Strong Reference가 무엇인가요?</h5>
+<p>"이 객체를 사라지지 않게 잡아두겠다"고 선언하는 참조입니다. <b>strong reference가 +1되면 retain count가 +1</b>되어 객체가 살아있게 됩니다. Swift에서 별도 키워드 없이 <code>var/let</code>로 선언하면 모두 strong reference입니다.</p>
+<pre>let a = User()         // strong reference (count: 1)
+let b = a              // 또 다른 strong reference (count: 2)
+let c = a              // 또 (count: 3)
+// a, b, c가 모두 스코프를 벗어나야 deinit 호출됨</pre>
+
+<h5>4. Reference Count는 언제 증가/감소하나요?</h5>
+<p><b>증가하는 경우:</b></p>
+<ul>
+<li>변수에 객체 할당 (<code>let x = obj</code>)</li>
+<li>함수 파라미터로 전달 (대부분의 경우)</li>
+<li>배열/딕셔너리 등 컬렉션에 추가</li>
+<li>클로저가 객체를 캡처</li>
+<li>다른 객체의 strong 프로퍼티에 할당</li>
+</ul>
+<p><b>감소하는 경우:</b></p>
+<ul>
+<li>변수가 스코프를 벗어남</li>
+<li>변수에 nil 또는 다른 객체 할당 (<code>x = nil</code>)</li>
+<li>컬렉션에서 제거</li>
+<li>클로저 해제</li>
+</ul>
+<p>참고: 컴파일러가 최적화로 불필요한 retain/release를 제거해서, 사람이 예상하는 횟수와 실제 호출 횟수가 다를 수 있습니다 (Guaranteed Parameter 컨벤션).</p>
+
+<h5>5. Reference Count가 0이 되면 어떤 일이?</h5>
+<p>다음 순서로 정리됩니다:</p>
+<ol style="padding-left:20px;margin:10px 0">
+<li><b>deinit 호출</b>: 객체의 deinit 메서드 실행</li>
+<li><b>프로퍼티 해제</b>: 객체가 가진 strong 참조 프로퍼티들의 count를 -1 (연쇄 해제)</li>
+<li><b>weak 참조 nil 처리</b>: 이 객체를 weak로 참조하던 변수들이 모두 nil이 됨</li>
+<li><b>메모리 해제</b>: 힙 메모리를 시스템에 반환</li>
+<li><b>Side Table 정리</b>: weak count도 0이면 Side Table 자체도 해제</li>
+</ol>
+
+<h5>6. deinit은 언제 호출되나요?</h5>
+<p>객체의 retain count가 <b>0이 되는 순간 즉시 호출</b>됩니다 (deterministic). 시점이 코드만 봐도 정확히 예측 가능합니다.</p>
+<pre>class FileHandle {
+    let path: String
+    init(path: String) { self.path = path; print("열림") }
+    deinit { print("닫힘") }
+}
+
+func test() {
+    let h = FileHandle(path: "log.txt")  // "열림"
+    print("작업 중...")
+}  // 함수 종료 → h count=0 → deinit 호출 → "닫힘"
+
+test()
+// 출력: 열림 → 작업 중... → 닫힘</pre>
+<p>이 deterministic한 특성 덕분에 RAII 패턴(파일 핸들, 락 등 자원 자동 정리)이 가능합니다.</p>
+
+<h5>7. deinit이 호출되지 않으면 어떤 상황을 의심하나요?</h5>
+<p>가장 흔한 4가지 원인:</p>
+<ol style="padding-left:20px;margin:10px 0">
+<li><b>Retain Cycle (순환 참조)</b>: 두 객체가 서로를 strong으로 잡고 있어 영원히 0이 안 됨</li>
+<li><b>Closure Capture</b>: 클로저가 self를 strong으로 캡처한 채 어딘가에 저장됨</li>
+<li><b>Timer/NotificationCenter</b>: Timer의 target은 strong, observer 해제 누락</li>
+<li><b>전역 변수/싱글톤 보관</b>: 의도치 않게 전역에 보관되어 영원히 살아있음</li>
+</ol>
+<p><b>탐지 방법:</b></p>
+<ul>
+<li>deinit에 <code>print</code> 추가 → 화면 dismiss 후 안 찍히면 의심</li>
+<li>Xcode Memory Graph Debugger → 보라색 ! 표시</li>
+<li>Instruments → Leaks</li>
+<li>화면 진입 10번 했는데 객체가 10개 살아있으면 누수</li>
+</ul>
+
+<div class="highlight">
+<b>💡 면접 답변 정석:</b> "ARC는 컴파일 타임에 retain/release를 자동 삽입하는 메모리 관리 시스템입니다. class, closure, actor 등 reference type에만 적용되며, struct/enum 같은 value type은 스택 기반 자동 해제됩니다. retain count가 0이 되면 즉시 deinit 호출 후 메모리 해제 + weak 참조 nil 처리. deinit이 호출 안 되면 retain cycle, closure capture, Timer/Notification 같은 잠재 누수를 의심합니다."
+</div>
+`},
+
+{name:"메모리 구조 7대 질문 (HeapObject 깊이)",icon:"green",
+detail:`
+<h5>1. Swift 클래스 인스턴스는 메모리 어디에 저장?</h5>
+<p><b>항상 힙(Heap)에 저장됩니다.</b> 스택에 저장되는 경우는 없습니다.</p>
+<p>이유: 클래스 인스턴스는 lifetime이 함수 스코프와 무관하게 길어질 수 있고(다른 변수에 할당, 컬렉션에 추가 등), 크기도 동적이라 스택에 두기 부적합합니다. 또한 ARC가 추적해야 하므로 고정된 주소가 필요한데, 힙이 그 역할을 합니다.</p>
+
+<h5>2. 클래스 인스턴스 내부에는 어떤 정보들이?</h5>
+<p>Swift 클래스 인스턴스는 단순히 우리가 선언한 프로퍼티만 들어있는 게 아닙니다. <b>"헤더 + 프로퍼티"</b> 구조입니다:</p>
+<pre>┌─────────────────────────────────────┐
+│ HEADER (16 bytes, 우리가 안 보임)    │
+│  ├─ metadata 포인터 (8B)            │  ← 타입 정보 (isa)
+│  └─ refCounts (8B)                  │  ← 참조 카운트
+├─────────────────────────────────────┤
+│ PROPERTIES (우리가 선언한 것)        │
+│  ├─ age: Int (8B)                   │
+│  ├─ name: String (16B)              │
+│  └─ ...                             │
+└─────────────────────────────────────┘</pre>
+<p>그래서 <code>class Empty { }</code>처럼 빈 클래스도 인스턴스 크기는 최소 16 bytes입니다 (헤더만).</p>
+
+<h5>3. HeapObject 개념을 들어본 적 있나요?</h5>
+<p>들어봤다면 큰 가산점입니다. <b>HeapObject는 Swift 런타임 내부에서 모든 클래스 인스턴스를 표현하는 C++ 구조체</b>입니다.</p>
+<pre>// Swift 런타임 소스 코드 (C++)
+struct HeapObject {
+    HeapMetadata const *metadata;  // 8B - 타입 정보 포인터
+    InlineRefCounts refCounts;     // 8B - 참조 카운트 (비트 압축)
+    // 그 다음에 프로퍼티들이 이어짐
+};</pre>
+<p>모든 Swift class는 컴파일 시 이 HeapObject 구조를 헤더로 갖도록 변환됩니다. ObjC의 <code>isa</code> 포인터와 비슷한 역할이지만, refCount까지 인라인으로 포함하는 점이 다릅니다.</p>
+
+<h5>4. Reference count는 객체 내부 어디서 관리?</h5>
+<p>HeapObject의 두 번째 필드 <code>InlineRefCounts</code>(8 bytes, 64bit)에 저장됩니다. 이 8바이트 안에 비트 단위로 여러 정보가 들어있습니다:</p>
+<pre>// InlineRefCounts 비트 레이아웃 (64bit)
+//
+// ┌──────────────┬───┬──────────────┬───┐
+// │ strong count │ D │ unowned count│ U │
+// │  (31 bits)   │   │  (31 bits)   │   │
+// └──────────────┴───┴──────────────┴───┘
+//
+// strong: 일반 strong 참조 개수
+// D (1bit): isDeinitializing — deinit 진행 중?
+// unowned: unowned 참조 개수
+// U (1bit): useSlowRC — Side Table 사용 중? (weak 있으면 1)</pre>
+<p>왜 비트로 압축했나? 모든 인스턴스에 8B 추가만 하기 위해서. 인스턴스 100만 개면 8MB 차이.</p>
+
+<h5>5. 프로퍼티 값과 refCount는 같은 위치에 있나요?</h5>
+<p>"같은 객체 안"이라는 의미에서는 같은 위치(연속된 메모리)지만, "같은 필드"는 아닙니다.</p>
+<pre>let p = Person()  // age=30, name="철수"
+
+// 메모리:
+힙: ┌──────────────────────────────┐ ← 객체 시작 주소
+    │ metadata 포인터 (8B)         │  헤더
+    │ refCount (8B): strong=1      │  헤더
+    ├──────────────────────────────┤
+    │ age: 30 (8B)                 │  내 프로퍼티
+    │ name: "철수" (16B)           │  내 프로퍼티
+    └──────────────────────────────┘
+    
+// 객체 시작 주소 + 0 → metadata
+// 객체 시작 주소 + 8 → refCount
+// 객체 시작 주소 + 16 → age (첫 프로퍼티)</pre>
+<p>프로퍼티 접근 시: 객체 포인터 + 오프셋(헤더 16 + 이전 프로퍼티들의 크기)으로 직접 접근.</p>
+
+<h5>6. 값 타입은 항상 stack에 저장되나요?</h5>
+<p><b>아닙니다.</b> 값 타입도 다음 경우엔 힙에 갈 수 있습니다:</p>
+<ul>
+<li><b>Existential Container에 담긴 큰 struct</b>: 24바이트 초과 시 힙에 별도 할당</li>
+<li><b>클로저에 캡처된 변수</b>: closure context는 힙에 있음</li>
+<li><b>Generic 컨텍스트 (specialization 실패 시)</b></li>
+<li><b>Indirect enum case</b>: 재귀 enum은 힙</li>
+<li><b>다른 class 인스턴스의 프로퍼티</b>: 그 class가 힙에 있으니 같이 힙</li>
+</ul>
+<p>그래서 정확히 말하면: "struct는 보통 인라인 저장(스택 또는 다른 객체의 일부)"이지 "항상 스택"은 아닙니다.</p>
+
+<h5>7. let user = User()에서 user 변수와 인스턴스는 각각 어디에?</h5>
+<pre>func test() {
+    let user = User()
+}</pre>
+<table style="width:100%;font-size:13px;border-collapse:collapse;margin:10px 0">
+<tr style="background:var(--g1)"><th style="padding:10px;text-align:left">대상</th><th style="padding:10px;text-align:left">위치</th><th style="padding:10px;text-align:left">설명</th></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)"><code>user</code> 변수</td><td style="padding:10px;border-top:1px solid var(--g2)">스택 (8B)</td><td style="padding:10px;border-top:1px solid var(--g2)">힙 객체를 가리키는 포인터</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)"><code>User()</code> 인스턴스</td><td style="padding:10px;border-top:1px solid var(--g2)">힙</td><td style="padding:10px;border-top:1px solid var(--g2)">실제 객체 (헤더 16B + 프로퍼티)</td></tr>
+</table>
+<p>예외: 변수가 클로저에 캡처되면 user 변수도 힙(closure context)으로 이동. 변수가 self.property라면 self 객체 내부(역시 힙).</p>
+
+<div class="highlight">
+<b>💡 면접 답변 정석:</b> "Swift 클래스 인스턴스는 항상 힙에 할당되며, Swift 런타임의 HeapObject 구조로 표현됩니다. 헤더에 metadata 포인터(8B)와 InlineRefCounts(8B)가 있고 그 뒤에 프로퍼티가 옵니다. 참조 카운트는 InlineRefCounts에 비트 단위로 압축되어 strong/unowned/플래그를 포함합니다. 변수 자체는 보통 스택의 포인터지만, 클로저 캡처되거나 다른 힙 객체에 속하면 힙에 위치합니다."
+</div>
+`},
+
+{name:"weak / unowned 8대 질문",icon:"purple",
+detail:`
+<h5>1. weak와 unowned의 차이는?</h5>
+<table style="width:100%;font-size:13px;border-collapse:collapse;margin:10px 0">
+<tr style="background:var(--g1)"><th style="padding:10px;text-align:left">항목</th><th style="padding:10px;text-align:left">weak</th><th style="padding:10px;text-align:left">unowned</th></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">Optional 여부</td><td style="padding:10px;border-top:1px solid var(--g2)">필수 Optional</td><td style="padding:10px;border-top:1px solid var(--g2)">Non-Optional 가능</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">대상 해제 후</td><td style="padding:10px;border-top:1px solid var(--g2)">자동으로 nil</td><td style="padding:10px;border-top:1px solid var(--g2)">크래시 (dangling pointer)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">Side Table</td><td style="padding:10px;border-top:1px solid var(--g2)">필요 (간접 참조)</td><td style="padding:10px;border-top:1px solid var(--g2)">불필요 (객체 내부 카운트)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">접근 비용</td><td style="padding:10px;border-top:1px solid var(--g2)">약간 높음 (간접 참조)</td><td style="padding:10px;border-top:1px solid var(--g2)">strong과 거의 같음</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">사용 시점</td><td style="padding:10px;border-top:1px solid var(--g2)">대상이 먼저 해제될 수 있음</td><td style="padding:10px;border-top:1px solid var(--g2)">대상이 항상 더 오래 삶</td></tr>
+</table>
+
+<h5>2. weak는 왜 항상 Optional이어야 하나요?</h5>
+<p>weak의 본질이 "대상이 해제되면 자동으로 nil이 된다"이기 때문입니다. nil이 될 수 있다는 것 자체가 Optional이라는 뜻이죠.</p>
+<pre>// weak는 var + Optional 강제
+weak var delegate: SomeDelegate?  // ✅
+weak let delegate: SomeDelegate?  // ❌ 컴파일 에러 (let은 변경 불가)
+weak var delegate: SomeDelegate   // ❌ 컴파일 에러 (Optional 아님)</pre>
+<p>참고: <code>let</code>도 안 됩니다. 자동으로 nil이 되는데 let이면 모순이거든요.</p>
+
+<h5>3. unowned는 Optional이 될 수 없나요?</h5>
+<p>iOS 12+에서는 <b>가능합니다</b>. 하지만 일반적이지 않습니다.</p>
+<pre>// unowned는 보통 non-optional
+unowned let owner: Owner
+
+// Optional unowned도 가능 (드물게 사용)
+unowned(safe) var ref: SomeClass?</pre>
+<p>unowned의 핵심 의도는 "대상이 절대 nil이 되지 않는다고 확신"하는 것이라, Optional로 쓸 거면 weak를 쓰는 게 더 자연스럽습니다.</p>
+
+<h5>4. weak 대상이 해제되면 weak 변수에는?</h5>
+<p>자동으로 <b>nil</b>이 됩니다. 이를 "zeroing reference"라고 부릅니다.</p>
+<pre>class Pet {}
+weak var w: Pet?
+
+do {
+    let p = Pet()
+    w = p
+    print(w != nil)  // true
+}  // p 해제 → w도 자동 nil
+
+print(w != nil)  // false (자동 nil 처리됨)</pre>
+<p>이게 가능한 이유: 객체가 해제될 때 Side Table을 통해 모든 weak 참조를 추적하고 nil로 만들어줍니다 (다음 토픽 참고).</p>
+
+<h5>5. unowned 대상이 먼저 해제되면?</h5>
+<p>접근하는 순간 <b>크래시</b>가 발생합니다. EXC_BAD_ACCESS 또는 fatalError.</p>
+<pre>class Owner {}
+class Pet {
+    unowned let owner: Owner
+    init(owner: Owner) { self.owner = owner }
+}
+
+var owner: Owner? = Owner()
+let pet = Pet(owner: owner!)
+owner = nil  // owner 해제
+
+// 이 시점에 pet.owner는 dangling reference
+print(pet.owner)  // 💥 크래시!</pre>
+<p>그래서 unowned는 <b>대상이 자기보다 항상 오래 산다는 확신</b>이 있을 때만 써야 합니다. 의심스러우면 weak.</p>
+
+<h5>6. 어떤 상황에서 weak, 어떤 상황에서 unowned?</h5>
+<table style="width:100%;font-size:13px;border-collapse:collapse;margin:10px 0">
+<tr style="background:var(--g1)"><th style="padding:10px;text-align:left">상황</th><th style="padding:10px;text-align:left">선택</th></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">delegate 패턴</td><td style="padding:10px;border-top:1px solid var(--g2)"><b>weak</b> (delegate가 먼저 해제 가능)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">closure에서 self 캡처 (비동기)</td><td style="padding:10px;border-top:1px solid var(--g2)"><b>weak</b> (콜백 시점에 self 사라질 수 있음)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">child → parent 참조</td><td style="padding:10px;border-top:1px solid var(--g2)"><b>unowned</b> (parent가 항상 더 오래 삶)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">즉시 실행되는 closure</td><td style="padding:10px;border-top:1px solid var(--g2)"><b>unowned</b> (실행 중엔 self 보장)</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">apartment-tenant 같은 명확한 lifetime</td><td style="padding:10px;border-top:1px solid var(--g2)"><b>unowned</b></td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">확신 없을 때</td><td style="padding:10px;border-top:1px solid var(--g2)"><b>weak</b> (안전 우선)</td></tr>
+</table>
+
+<h5>7. delegate를 weak로 선언하는 이유는?</h5>
+<p><b>retain cycle을 방지하기 위해서</b>입니다. delegate 패턴의 일반적인 구조를 보면:</p>
+<pre>// 흔한 구조:
+class ViewController: UIViewController, ServiceDelegate {
+    let service = Service()  // VC가 service를 strong 보유
+    
+    override func viewDidLoad() {
+        service.delegate = self  // service가 VC를 ?로 보유
+    }
+}
+
+// 만약 delegate가 strong이면:
+// VC → service (strong)
+// service → delegate (strong, = VC)
+// 순환! VC가 dismiss되어도 deinit 안 됨!
+
+// delegate를 weak로:
+// VC → service (strong)
+// service → delegate (weak, = VC)
+// VC가 dismiss → VC count=0 → deinit ✅</pre>
+
+<h5>8. delegate 프로토콜에 AnyObject 제약이 필요한 이유는?</h5>
+<p>weak는 reference type(class)에만 적용 가능합니다. struct/enum 같은 value type은 weak로 만들 수 없죠.</p>
+<pre>protocol ServiceDelegate {  // class 제약 없음
+    func didFinish()
+}
+
+class Service {
+    weak var delegate: ServiceDelegate?
+    // ❌ 컴파일 에러!
+    // 'weak' must not be applied to non-class-bound 'ServiceDelegate'
+}
+
+// 해결: AnyObject 제약 추가
+protocol ServiceDelegate: AnyObject {  // class 전용으로 제한
+    func didFinish()
+}
+
+class Service {
+    weak var delegate: ServiceDelegate?  // ✅
+}</pre>
+<p>AnyObject는 "이 프로토콜은 class만 채택할 수 있다"고 컴파일러에 알려줍니다. struct/enum은 채택 불가하므로 안전하게 weak로 선언 가능해집니다.</p>
+
+<div class="highlight">
+<b>💡 면접 답변 정석:</b> "weak는 Optional이고 대상 해제 시 자동 nil(zeroing reference), unowned는 non-optional이고 해제 후 접근 시 크래시. weak는 Side Table을 통해 동작해서 약간의 성능 비용이 있고, unowned는 객체 내부 카운트만 사용해 빠릅니다. delegate는 weak로 retain cycle을 방지하며, 프로토콜에 AnyObject 제약을 추가해 class만 채택 가능하게 강제해야 weak 적용이 가능합니다."
+</div>
+`},
+
+{name:"Side Table 6대 질문 (weak의 동작 원리)",icon:"orange",
+detail:`
+<h5>1. Swift에서 weak 참조는 어떻게 관리되나요?</h5>
+<p>핵심: <b>"객체 내부에서 직접 관리하지 않고, 별도의 Side Table을 거쳐서 관리"</b>합니다.</p>
+<p>일반 strong 참조는 객체 내부 InlineRefCounts에 직접 카운트만 +1/-1 하면 끝. 그런데 weak는 "대상이 해제되면 자동 nil"이라는 추가 기능이 필요해서 별도 자료구조가 필요합니다. 그 자료구조가 Side Table입니다.</p>
+
+<pre>// 일반 strong: 직접 관리
+HeapObject {
+    metadata
+    refCounts: strong=3  ← 단순 카운트
+    ...
+}
+
+// weak 있으면: Side Table 거쳐서 관리
+HeapObject {
+    metadata
+    refCounts: useSlowRC=1  ← "Side Table 보세요" 플래그
+    ...
+}
+       ↓ 별도 할당
+SideTable {
+    refCounts: strong=2, weak=3
+    object: HeapObject 포인터
+}</pre>
+
+<h5>2. Side Table이 무엇인가요?</h5>
+<p><b>weak 참조를 지원하기 위해 별도로 할당되는 추가 메모리 영역</b>입니다. C++ 구조체로 정의되어 있습니다:</p>
+<pre>struct HeapObjectSideTableEntry {
+    SideTableRefCounts refCounts;       // strong + unowned + weak count
+    std::atomic&lt;WeakRefCount&gt; weakBits; // weak 참조 개수
+    HeapObject *object;                 // 원본 객체 포인터
+};</pre>
+<p>Side Table은 객체별로 하나씩 만들어지며, 처음에는 없다가 weak 참조가 처음 생길 때 lazy하게 할당됩니다.</p>
+
+<h5>3. 왜 객체 내부 refCount만으로는 weak를 관리할 수 없나요?</h5>
+<p>핵심 시나리오를 보면 됩니다:</p>
+<pre>let p = Person()           // count: 1
+weak var w1 = p           
+weak var w2 = p
+weak var w3 = p
+// p = nil 했을 때, w1, w2, w3를 어떻게 모두 nil로 만들지?</pre>
+<p>p가 해제될 때 "이 객체를 weak로 참조하는 모든 변수"를 찾아내 nil 처리해야 합니다. 그러려면:</p>
+<ol style="padding-left:20px;margin:10px 0">
+<li>weak 참조 목록을 어딘가에 저장해야 함</li>
+<li>객체가 해제됐다는 신호를 weak 변수들에게 전달해야 함</li>
+<li>객체 자체는 이미 해제되었지만 weak 변수들은 살아있어야 함</li>
+</ol>
+<p>객체 내부에만 정보를 두면 객체 해제 시 그 정보도 사라집니다. 그래서 객체 외부에 별도 자료구조(Side Table)가 필요한 것입니다.</p>
+
+<h5>4. 객체 해제 시 weak 변수들이 자동 nil 되는 원리는?</h5>
+<p>실제 동작 순서:</p>
+<pre>// 시나리오:
+let p = Person()
+weak var w = p
+
+// 1. weak var w = p 시점:
+//    Side Table 생성
+//    Side Table.weakCount += 1
+//    w는 Side Table을 가리킴 (객체를 직접 가리키지 않음!)
+
+// 2. p = nil (또는 스코프 종료):
+//    객체의 strong count 0 → deinit 호출
+//    Side Table.refCounts.strong = 0 으로 설정
+//    하지만 Side Table 자체는 아직 살아있음 (w가 참조 중)
+
+// 3. w 접근 시:
+//    w.read() {
+//      Side Table에서 strong count 확인
+//      strong == 0 → return nil
+//    }
+//    → 자동으로 nil 반환됨
+
+// 4. w도 스코프를 벗어나면:
+//    Side Table.weakCount = 0
+//    Side Table 자체도 해제</pre>
+
+<p>핵심: weak 변수는 객체를 직접 가리키지 않고 <b>Side Table을 가리킨다</b>는 것이 트릭입니다. Side Table에는 "객체가 이미 해제됐는가?"라는 정보가 있어서, 접근 시 그걸 확인하고 nil을 반환합니다.</p>
+
+<h5>5. Side Table은 항상 생성되나요?</h5>
+<p><b>아닙니다. 처음에는 없다가, weak 참조가 처음 생길 때 lazy하게 할당</b>됩니다 (lazy allocation).</p>
+<pre>let p = Person()
+// 이 시점: Side Table 없음
+// HeapObject만 존재
+
+weak var w = p
+// 이 시점: Side Table 생성됨
+// HeapObject.refCounts에 useSlowRC=1 플래그 설정
+// 이후 모든 RC 작업이 Side Table을 통해 일어남</pre>
+<p>이래서 weak를 안 쓰는 객체는 Side Table 비용이 0입니다. weak를 쓰면 그때부터 추가 메모리(약 32 bytes)가 발생.</p>
+
+<h5>6. weak 참조가 많아지면 성능 영향은?</h5>
+<p>두 가지 영향이 있습니다:</p>
+<p><b>(1) 메모리:</b></p>
+<ul>
+<li>객체당 Side Table 1개: ~32 bytes</li>
+<li>weak 참조 1개당 추가 메모리: 8 bytes (포인터)</li>
+<li>크지 않지만 객체 1만 개에 weak 5개씩이면 ~1.6MB 추가</li>
+</ul>
+<p><b>(2) CPU (접근 비용):</b></p>
+<table style="width:100%;font-size:13px;border-collapse:collapse;margin:10px 0">
+<tr style="background:var(--g1)"><th style="padding:10px;text-align:left">참조 종류</th><th style="padding:10px;text-align:left">접근 비용</th><th style="padding:10px;text-align:left">설명</th></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">strong</td><td style="padding:10px;border-top:1px solid var(--g2)">~1ns</td><td style="padding:10px;border-top:1px solid var(--g2)">직접 포인터</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">unowned</td><td style="padding:10px;border-top:1px solid var(--g2)">~2-3ns</td><td style="padding:10px;border-top:1px solid var(--g2)">객체 내부 count 확인</td></tr>
+<tr><td style="padding:10px;border-top:1px solid var(--g2)">weak</td><td style="padding:10px;border-top:1px solid var(--g2)">~10-20ns</td><td style="padding:10px;border-top:1px solid var(--g2)">Side Table 거쳐 atomic load</td></tr>
+</table>
+<p>UI 코드에선 무시할 수준이지만, hot loop에서는 차이가 누적됩니다. 그래서 클로저에서 <code>[weak self] in guard let self else { return }</code> 패턴으로 한 번 strong 변환 후 사용하는 것이 좋습니다.</p>
+
+<pre>// ❌ 매 반복마다 weak 접근 (Side Table 거침)
+items.forEach {
+    self?.process($0)  // 매번 ~15ns
+}
+
+// ✅ 한 번 strong 변환 후 사용
+guard let strong = self else { return }
+items.forEach {
+    strong.process($0)  // 매번 ~1ns
+}</pre>
+
+<div class="highlight">
+<b>💡 면접 답변 정석:</b> "weak 참조는 Side Table이라는 별도 자료구조를 통해 관리됩니다. 객체 내부 카운트만으로는 '객체 해제 후에도 살아있는 weak 변수에 nil 통보'가 불가능하기 때문이죠. weak 변수는 객체가 아닌 Side Table을 가리키고, 접근 시 strong count를 확인해 0이면 nil을 반환합니다. Side Table은 weak가 처음 생길 때 lazy하게 할당되며, 접근 비용이 strong보다 약간 높아 hot loop에서는 strong으로 변환 후 사용하는 게 유리합니다."
+</div>
+`},
+
+{name:"Retain Cycle 3대 질문 (실전 누수 진단)",icon:"blue",
+detail:`
+<h5>1. Retain Cycle이 무엇인가요?</h5>
+<p>두 객체(또는 여러 객체)가 <b>서로를 strong으로 참조</b>하여 reference count가 영원히 0이 되지 않는 상황입니다.</p>
+<pre>// 가장 단순한 예
+class A {
+    var b: B?  // strong
+}
+class B {
+    var a: A?  // strong
+}
+
+let a = A()
+let b = B()
+a.b = b
+b.a = a
+// 외부 변수 a, b가 사라져도:
+// A의 retain count: 1 (B.a가 잡고 있음)
+// B의 retain count: 1 (A.b가 잡고 있음)
+// → 둘 다 영원히 해제 안 됨</pre>
+
+<h5>2. Retain Cycle이 발생하면 왜 메모리 누수가 생기나요?</h5>
+<p>ARC가 객체를 해제하는 유일한 조건은 "strong count가 0"입니다. 순환 참조가 있으면 외부에서 더 이상 참조하지 않더라도 서로가 서로를 잡고 있어 count가 0이 안 됩니다. 결과:</p>
+<ul>
+<li><b>아무도 사용하지 않는 객체가 메모리에 남음</b> (메모리 누수)</li>
+<li>같은 시나리오를 반복하면 누수가 누적되어 메모리 사용량 증가</li>
+<li>최악의 경우 시스템이 앱을 메모리 부족으로 종료</li>
+</ul>
+<p>중요한 점: 단순 누수가 아니라 <b>객체의 deinit이 호출되지 않는 것이 더 큰 문제</b>일 수 있습니다. deinit에서 정리하던 자원(파일 핸들, observer 해제 등)이 영원히 정리 안 됨.</p>
+
+<h5>3. 아래 코드의 문제는?</h5>
+<p>면접에서 자주 나오는 3가지 패턴을 모두 보여드립니다.</p>
+
+<h5>패턴 1: Closure에서 self 캡처</h5>
+<pre>class ViewController: UIViewController {
+    var dataLoader = DataLoader()
+    var name = "철수"
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        dataLoader.onComplete = { result in
+            self.handleResult(result)  // ⚠️ 문제!
+            print(self.name)
+        }
+    }
+    
+    func handleResult(_ r: Result&lt;Data, Error&gt;) { /* ... */ }
+}</pre>
+<p><b>문제:</b> closure가 self를 strong 캡처. 결과적으로:</p>
+<ul>
+<li>VC → dataLoader (strong, 프로퍼티)</li>
+<li>dataLoader → onComplete (strong, 프로퍼티)</li>
+<li>onComplete → self (strong, 캡처)</li>
+<li>self == VC → 순환 완성!</li>
+</ul>
+<pre>// ✅ 해결: [weak self]
+dataLoader.onComplete = { [weak self] result in
+    guard let self = self else { return }
+    self.handleResult(result)
+}</pre>
+
+<h5>패턴 2: Delegate strong 참조</h5>
+<pre>protocol DataLoaderDelegate {  // ⚠️ AnyObject 제약 없음
+    func didFinish()
+}
+
+class DataLoader {
+    var delegate: DataLoaderDelegate?  // ⚠️ 기본 strong!
+}
+
+class ViewController: UIViewController, DataLoaderDelegate {
+    let loader = DataLoader()
+    
+    override func viewDidLoad() {
+        loader.delegate = self  // 순환!
+    }
+}</pre>
+<p><b>문제:</b></p>
+<ul>
+<li>VC → loader (strong, 프로퍼티)</li>
+<li>loader → delegate (strong, 기본값)</li>
+<li>delegate == VC → 순환!</li>
+</ul>
+<pre>// ✅ 해결:
+protocol DataLoaderDelegate: AnyObject {  // 1) class 제약
+    func didFinish()
+}
+
+class DataLoader {
+    weak var delegate: DataLoaderDelegate?  // 2) weak
+}</pre>
+
+<h5>패턴 3: Timer target retain</h5>
+<pre>class TimerVC: UIViewController {
+    var timer: Timer?
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        timer = Timer.scheduledTimer(
+            timeInterval: 1.0,
+            target: self,        // ⚠️ Timer가 self를 strong 보유!
+            selector: #selector(tick),
+            userInfo: nil,
+            repeats: true
+        )
+    }
+    
+    @objc func tick() { print("tick") }
+}</pre>
+<p><b>문제:</b></p>
+<ul>
+<li>RunLoop → Timer (strong, 등록됨)</li>
+<li>Timer → target (strong, = self = VC)</li>
+<li>VC → timer (strong, 프로퍼티)</li>
+<li>VC를 pop해도 Timer가 살아있어 self 보유 → 순환!</li>
+</ul>
+<pre>// ✅ 해결 1: viewWillDisappear에서 invalidate
+override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    timer?.invalidate()  // RunLoop → Timer 끊김
+    timer = nil
+}
+
+// ✅ 해결 2: block-based Timer (iOS 10+)
+timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+    self?.tick()  // weak 캡처
+}</pre>
+
+<h5>탐지 체크리스트</h5>
+<ol style="padding-left:20px;margin:10px 0">
+<li>모든 클래스에 deinit print 추가 → 화면 dismiss 후 안 찍히면 의심</li>
+<li>Memory Graph Debugger → 보라색 ! 표시 확인</li>
+<li>Instruments Leaks 정기 실행</li>
+<li>코드 리뷰 시 closure에 [weak self] 누락 확인</li>
+<li>delegate 프로퍼티가 weak인지 확인</li>
+<li>Timer/NotificationCenter observer 해제 코드 확인</li>
+</ol>
+
+<div class="highlight">
+<b>💡 면접 답변 정석:</b> "Retain Cycle은 두 객체가 서로를 strong으로 참조하여 RC가 0이 되지 않는 상황입니다. 결과적으로 deinit이 호출되지 않아 메모리 누수와 자원 누수가 발생합니다. 가장 흔한 3가지 패턴은 closure capture, delegate strong 참조, Timer target retain입니다. 각각 [weak self], weak delegate + AnyObject 제약, invalidate 호출 또는 block-based Timer로 해결합니다. 저는 deinit에 print를 두고 Memory Graph Debugger로 정기적으로 검증합니다."
+</div>
+`}
 ],
 
 questions:[
@@ -1033,6 +1611,78 @@ answer:"<b>해제 시점의 결정성</b>입니다.<br><br>ARC: 참조 카운트
 
 {q:"closure capture list의 동작 원리는?",level:"advanced",freq:true,
 answer:"capture list는 <b>클로저가 생성되는 시점에 변수를 캡처하는 방식을 명시</b>하는 문법입니다.<br><br>기본 동작:<br>• reference type: strong 캡처 (retain count +1)<br>• value type: 값 복사<br><br>capture list로 변경 가능:<br>• <code>[weak self]</code>: weak 캡처<br>• <code>[unowned self]</code>: unowned 캡처<br>• <code>[x = someValue]</code>: 클로저 생성 시점의 값으로 복사<br>• <code>[weak delegate, x = currentX]</code>: 여러 개 동시 가능<br><br>예시:<br><pre>var x = 10\nlet closure = { [x] in print(x) }  // 10 캡처\nx = 20\nclosure()  // 10 출력 (x=20이 아님!)</pre>"}
+,
+{q:"ARC가 적용되는 타입은? struct, enum, class 중 어디?",level:"basic",freq:true,
+answer:"<b>class, closure, actor 같은 reference type에만 적용됩니다.</b><br><br>struct, enum 같은 value type은 ARC 대상이 아닙니다. 스택에 저장되어 스코프 종료 시 자동 해제되거나, 다른 객체에 포함되어 그 객체와 함께 관리됩니다.<br><br>주의: struct 안에 class 프로퍼티가 있다면 그 class 프로퍼티는 ARC 적용. struct 자체는 아닙니다."},
+
+{q:"Strong Reference가 정확히 무엇인가요?",level:"basic",freq:true,
+answer:"\"이 객체를 사라지지 않게 잡아두겠다\"고 선언하는 참조입니다. <b>strong reference가 +1되면 retain count가 +1</b>되어 객체가 살아있게 됩니다.<br><br>Swift에서는 별도 키워드 없이 <code>var/let</code>으로 선언하면 모두 strong입니다. ObjC의 <code>__strong</code>이 기본값이 된 셈이죠.<br><br>대비되는 개념: weak(자동 nil), unowned(non-owning).<br><br>Strong이 의미 있는 이유: ARC가 \"누군가가 잡고 있는가?\"를 판단하는 기준이 strong count이기 때문입니다."},
+
+{q:"Reference Count는 언제 증가하고 언제 감소하나요?",level:"basic",freq:true,
+answer:"<b>증가:</b><br>• 변수에 할당 (<code>let x = obj</code>)<br>• 함수 파라미터로 전달 (대부분의 경우)<br>• 컬렉션(Array, Dictionary)에 추가<br>• 클로저가 캡처<br>• 다른 객체의 strong 프로퍼티에 할당<br><br><b>감소:</b><br>• 변수가 스코프를 벗어남<br>• 변수에 nil/다른 객체 할당<br>• 컬렉션에서 제거<br>• 클로저 해제<br><br>주의: 컴파일러가 -O 최적화에서 불필요한 retain/release를 제거할 수 있어 사람이 예상하는 횟수와 실제 호출 횟수가 다를 수 있습니다 (Guaranteed Parameter 컨벤션)."},
+
+{q:"Reference Count가 0이 되면 어떤 일이 발생하나요?",level:"basic",freq:true,
+answer:"순서대로 다음이 발생합니다:<br><br>1. <b>deinit 호출</b>: 객체의 deinit 메서드 실행<br>2. <b>자식 프로퍼티 release</b>: 객체가 가진 strong 참조들의 RC가 -1 (연쇄 해제)<br>3. <b>weak 참조 nil 처리</b>: 이 객체를 weak로 참조하던 변수들이 모두 nil이 됨<br>4. <b>메모리 해제</b>: 힙 메모리를 시스템에 반환<br>5. <b>Side Table 정리</b>: weak count도 0이면 Side Table 자체도 해제<br><br>이 순서는 결정적(deterministic)이라서 시점이 정확히 예측 가능합니다."},
+
+{q:"deinit이 호출되지 않으면 어떤 상황을 의심하나요?",level:"basic",freq:true,
+answer:"가장 흔한 4가지 원인:<br><br>1. <b>Retain Cycle</b>: 두 객체가 서로 strong 참조 → 영원히 RC가 0 안 됨<br>2. <b>Closure Capture</b>: 클로저가 self를 strong 캡처한 채 어딘가에 저장됨<br>3. <b>Timer / NotificationCenter</b>: Timer의 target은 strong, observer 해제 누락<br>4. <b>전역 변수 / 싱글톤 보관</b>: 의도치 않게 전역에 저장되어 영원히 살아있음<br><br>탐지: deinit에 print 추가 → 화면 dismiss 후 안 찍히면 의심. Memory Graph Debugger로 시각화. Instruments Leaks 자동 탐지."},
+
+{q:"Swift 클래스 인스턴스는 메모리 어디에 저장되나요?",level:"basic",freq:true,
+answer:"<b>항상 힙(Heap)에 저장됩니다.</b> 스택에 저장되는 경우는 없습니다.<br><br>이유:<br>1. lifetime이 함수 스코프와 무관하게 길어질 수 있음 (다른 변수에 할당, 컬렉션에 추가 등)<br>2. ARC가 추적해야 하므로 고정된 주소가 필요한데, 스택은 frame이 사라지면 주소도 사라짐<br>3. 크기가 동적이거나 큰 경우가 많아 스택에 부적합<br><br>변수 자체(<code>let user = ...</code>의 user)는 보통 스택에 있는 포인터지만, 실제 객체는 힙입니다."},
+
+{q:"클래스 인스턴스 내부에는 어떤 정보들이 들어있나요?",level:"advanced",freq:true,
+answer:"\"헤더 + 프로퍼티\" 구조입니다.<br><br><b>HEADER (16 bytes, 우리가 안 보이는 부분):</b><br>• metadata 포인터 (8B): 타입 정보, vtable, ObjC isa 역할<br>• InlineRefCounts (8B): strong/unowned count + 플래그<br><br><b>PROPERTIES:</b><br>• 우리가 선언한 프로퍼티들이 순서대로 저장<br>• 프로퍼티 정렬 규칙(alignment) 적용<br><br>그래서 <code>class Empty { }</code>처럼 빈 클래스도 인스턴스 크기는 최소 16 bytes입니다."},
+
+{q:"HeapObject 개념을 들어본 적 있나요?",level:"advanced",freq:false,
+answer:"<b>HeapObject는 Swift 런타임 내부에서 모든 클래스 인스턴스를 표현하는 C++ 구조체</b>입니다.<br><br><pre>struct HeapObject {\n    HeapMetadata const *metadata;  // 8B\n    InlineRefCounts refCounts;     // 8B\n    // 그 다음에 프로퍼티들\n};</pre>모든 Swift class는 컴파일 시 이 HeapObject 구조를 헤더로 갖도록 변환됩니다.<br><br>ObjC와 비교: ObjC도 isa 포인터가 있지만, refCount는 별도 테이블로 관리. Swift는 refCount까지 인라인으로 객체에 포함시켜 메모리 효율이 좋습니다."},
+
+{q:"InlineRefCounts에는 어떤 정보가 압축되어 있나요?",level:"advanced",freq:false,
+answer:"64bit(8 bytes) 안에 비트 단위로 다음 정보가 압축되어 있습니다:<br><br>• <b>strong count (31 bits)</b>: 일반 strong 참조 개수<br>• <b>isDeinitializing (1 bit)</b>: deinit 진행 중 플래그<br>• <b>unowned count (31 bits)</b>: unowned 참조 개수<br>• <b>useSlowRC (1 bit)</b>: Side Table 사용 여부 (weak 있으면 1)<br><br>왜 압축했나? 모든 인스턴스에 8B 추가만 하기 위해서. 인스턴스가 100만 개면 8MB 차이입니다.<br><br>weak 참조가 추가되면 useSlowRC가 1로 변경되고, 모든 RC 작업이 Side Table을 통해 일어납니다."},
+
+{q:"값 타입은 항상 stack에 저장되나요?",level:"advanced",freq:true,
+answer:"<b>아닙니다.</b> 값 타입도 다음 경우엔 힙에 저장됩니다:<br><br>1. <b>Existential Container의 24바이트 초과 struct</b>: 인라인 버퍼 초과 시 힙 할당<br>2. <b>클로저에 캡처된 변수</b>: closure context는 힙<br>3. <b>Generic 컨텍스트 (specialization 실패 시)</b>: 컴파일러가 구체 타입 모르면 힙<br>4. <b>Indirect enum case</b>: 재귀 enum은 힙<br>5. <b>다른 class 인스턴스의 프로퍼티</b>: class가 힙에 있으니 같이 힙<br><br>그래서 정확한 표현은 \"struct는 보통 인라인 저장(스택 또는 다른 객체의 일부)\"입니다."},
+
+{q:"let user = User()에서 user 변수와 인스턴스는 각각 어디에?",level:"basic",freq:true,
+answer:"<b>일반적인 경우:</b><br>• <code>user</code> 변수 → 스택 (8B 포인터)<br>• <code>User()</code> 인스턴스 → 힙 (헤더 16B + 프로퍼티)<br><br><b>예외:</b><br>• 변수가 클로저에 캡처되면 user 변수도 힙(closure context)으로 이동<br>• <code>self.user</code>처럼 프로퍼티라면 self 객체 안에 포함되어 힙<br>• 변수가 컬렉션에 들어가면 컬렉션 버퍼(보통 힙)에 위치<br><br>중요: 변수는 \"객체를 가리키는 포인터\"이고 객체 자체와 다릅니다. 변수의 위치와 객체의 위치는 별개입니다."},
+
+{q:"weak는 왜 항상 Optional이어야 하나요?",level:"basic",freq:true,
+answer:"weak의 본질이 <b>\"대상이 해제되면 자동으로 nil이 된다\"</b>이기 때문입니다. nil이 될 수 있다는 것 자체가 Optional이라는 뜻이죠.<br><br><pre>weak var d: SomeDelegate?  // ✅\nweak let d: SomeDelegate?  // ❌ let은 변경 불가, 자동 nil 처리 모순\nweak var d: SomeDelegate   // ❌ Optional 아님</pre>let도 안 됩니다 — 자동으로 nil이 되는데 let이면 모순이거든요.<br><br>비교: unowned는 \"절대 nil 안 된다\"는 강한 의도라서 non-Optional이 자연스럽습니다."},
+
+{q:"unowned는 Optional이 될 수 없나요?",level:"advanced",freq:false,
+answer:"iOS 12+에서는 <b>가능하지만 일반적이지 않습니다</b>.<br><br><pre>// 일반적: non-optional\nunowned let owner: Owner\n\n// 가능하지만 드물게 사용\nunowned(safe) var ref: SomeClass?</pre>unowned의 핵심 의도는 \"대상이 절대 nil이 되지 않는다고 확신\"하는 것입니다. Optional로 쓸 거면 이미 nil이 될 수 있다는 뜻이라 weak를 쓰는 게 더 자연스럽습니다.<br><br>역사적 배경: 옛 Swift에서는 unowned는 항상 non-optional이었습니다. 이후 더 유연한 사용을 위해 Optional도 허용되었지만, 의미적으로 weak가 더 적합한 경우가 대부분입니다."},
+
+{q:"weak 참조 대상이 해제되면 weak 변수에는?",level:"basic",freq:true,
+answer:"자동으로 <b>nil</b>이 됩니다. 이를 \"zeroing reference\"라고 부릅니다.<br><br><pre>weak var w: Pet?\ndo {\n    let p = Pet()\n    w = p\n    print(w != nil)  // true\n}  // p 해제\nprint(w != nil)  // false (자동 nil)</pre>이게 가능한 원리: 객체가 해제될 때 Side Table을 통해 모든 weak 참조를 추적하고 nil 처리. 그래서 weak를 사용하려면 객체가 Side Table을 가질 수 있어야 하고, 이는 자동으로 처리됩니다."},
+
+{q:"unowned 대상이 먼저 해제되면 어떤 문제가?",level:"basic",freq:true,
+answer:"접근하는 순간 <b>크래시</b>가 발생합니다. EXC_BAD_ACCESS 또는 fatalError.<br><br><pre>var owner: Owner? = Owner()\nlet pet = Pet(owner: owner!)\nowner = nil  // owner 해제\n\nprint(pet.owner)  // 💥 크래시!</pre>unowned는 \"이 참조가 항상 유효하다\"고 컴파일러에 약속하는 것입니다. 그 약속을 어기면 dangling pointer 접근이 되어 즉시 크래시.<br><br>그래서 unowned는 <b>대상이 자기보다 항상 오래 산다는 확신</b>이 있을 때만 써야 합니다. 의심스러우면 weak가 안전합니다."},
+
+{q:"delegate 패턴에서 delegate를 weak로 선언하는 이유는?",level:"basic",freq:true,
+answer:"<b>retain cycle을 방지</b>하기 위해서입니다.<br><br>delegate 패턴의 일반 구조:<br>• ViewController가 Service를 strong 보유<br>• Service가 delegate(=ViewController)를 보유<br><br>만약 delegate가 strong이면:<br>VC → Service (strong) → delegate=VC (strong) → 순환!<br><br>delegate를 weak로 선언하면 순환이 끊어져 VC가 정상 해제됩니다.<br><br>이 패턴은 Apple의 UIKit 전체에서 일관되게 적용됩니다 (UITableView.delegate, UIScrollView.delegate 등 모두 weak)."},
+
+{q:"protocol에 AnyObject 제약이 필요한 이유는?",level:"basic",freq:true,
+answer:"<b>weak가 reference type(class)에만 적용 가능하기 때문</b>입니다.<br><br>struct/enum 같은 value type은 weak로 만들 수 없습니다 (값 자체가 복사되니까 \"참조가 없어졌다\"는 개념이 없음).<br><br><pre>protocol ServiceDelegate { ... }  // class 제약 없음\n\nclass Service {\n    weak var delegate: ServiceDelegate?\n    // ❌ 컴파일 에러:\n    // 'weak' must not be applied to non-class-bound 'ServiceDelegate'\n}\n\n// 해결:\nprotocol ServiceDelegate: AnyObject {  // class 전용\n    func didFinish()\n}\n\nclass Service {\n    weak var delegate: ServiceDelegate?  // ✅\n}</pre>AnyObject는 \"이 프로토콜은 class만 채택할 수 있다\"고 컴파일러에 알려주는 제약입니다."},
+
+{q:"weak 참조는 어떻게 관리되나요? (Side Table 핵심)",level:"advanced",freq:true,
+answer:"<b>객체 내부에서 직접 관리하지 않고, Side Table을 거쳐서 관리</b>됩니다.<br><br>일반 strong은 객체 내부 InlineRefCounts에 직접 +1/-1 하면 끝입니다. 그런데 weak는 \"대상이 해제되면 자동 nil\"이라는 추가 기능이 필요해서 별도 자료구조가 필요합니다.<br><br>핵심 트릭: <b>weak 변수는 객체가 아니라 Side Table을 가리킨다</b>. Side Table에 \"객체가 이미 해제됐는가?\" 정보가 있어서, 접근 시 그걸 확인하고 nil을 반환합니다.<br><br>이래서 weak 변수가 살아있는 동안 객체 자체는 해제되었지만 Side Table은 살아있을 수 있습니다."},
+
+{q:"Side Table이 무엇인가요?",level:"advanced",freq:true,
+answer:"<b>weak 참조를 지원하기 위해 별도로 할당되는 추가 메모리 영역</b>입니다.<br><br><pre>struct HeapObjectSideTableEntry {\n    SideTableRefCounts refCounts;\n    atomic&lt;WeakRefCount&gt; weakBits;\n    HeapObject *object;  // 원본 객체 포인터\n};</pre>특징:<br>• 객체별로 하나씩 만들어짐 (lazy 할당)<br>• 처음에는 없다가 weak 참조가 처음 생길 때 할당<br>• 메모리: 약 32 bytes<br>• thread-safe (atomic 연산 사용)<br><br>왜 \"Side\"? HeapObject가 메인이고, 이건 보조(side) 역할이라는 의미입니다."},
+
+{q:"객체 해제 시 weak 변수가 자동 nil 되는 원리는?",level:"advanced",freq:true,
+answer:"실제 동작 순서:<br><br>1. <b>weak var w = p 시점</b><br>• Side Table 생성 (없으면)<br>• Side Table.weakCount += 1<br>• w는 Side Table을 가리킴 (객체를 직접 가리키지 않음!)<br><br>2. <b>p 해제 시</b><br>• 객체 strong count = 0 → deinit 호출<br>• Side Table에 \"객체 해제됨\" 마킹<br>• 하지만 Side Table 자체는 아직 살아있음 (w가 참조 중)<br><br>3. <b>w 접근 시</b><br>• Side Table에서 strong count 확인<br>• strong == 0 → return nil<br><br>4. <b>w도 해제되면</b><br>• Side Table.weakCount = 0<br>• Side Table 자체도 해제<br><br>이 메커니즘 덕분에 객체가 사라져도 weak 변수는 안전하게 nil을 받을 수 있습니다."},
+
+{q:"Side Table은 항상 생성되나요?",level:"advanced",freq:false,
+answer:"<b>아닙니다. Lazy하게 할당됩니다.</b><br><br>처음에는 없다가, <b>weak 참조가 처음 생기는 시점</b>에 할당됩니다.<br><br><pre>let p = Person()\n// 이 시점: Side Table 없음, HeapObject만 존재\n\nweak var w = p\n// 이 시점: Side Table 생성!\n// HeapObject.refCounts.useSlowRC = 1로 설정\n// 이후 모든 RC 작업이 Side Table 통해 일어남</pre>이래서 weak를 안 쓰는 객체는 Side Table 비용이 0입니다. weak를 쓰면 그때부터 추가 메모리(~32 bytes)가 발생.<br><br>이 lazy 전략 덕분에 ARC 오버헤드가 최소화됩니다 — 모든 객체에 Side Table을 미리 만들어두지 않으니까요."},
+
+{q:"weak 참조가 많아지면 성능 영향은?",level:"advanced",freq:false,
+answer:"두 가지 영향이 있습니다:<br><br><b>(1) 메모리:</b><br>• 객체당 Side Table: ~32 bytes<br>• weak 참조 1개당: 추가 8 bytes<br>• 객체 1만 개에 weak 5개씩이면 ~1.6MB<br><br><b>(2) 접근 비용:</b><br>• strong: ~1ns (직접 포인터)<br>• unowned: ~2-3ns (객체 내부 count 확인)<br>• weak: ~10-20ns (Side Table 거쳐 atomic load)<br><br>UI 코드에선 무시할 수준이지만, hot loop에서는 차이가 누적됩니다.<br><br>최적화 패턴:<pre>// ❌ 매 반복마다 weak 접근\nitems.forEach { self?.process($0) }  // 매번 ~15ns\n\n// ✅ 한 번 strong 변환 후 사용\nguard let strong = self else { return }\nitems.forEach { strong.process($0) }  // 매번 ~1ns</pre>"},
+
+{q:"Retain Cycle이 발생하면 왜 메모리 누수가 생기나요?",level:"basic",freq:true,
+answer:"ARC가 객체를 해제하는 유일한 조건은 <b>\"strong count가 0\"</b>입니다.<br><br>순환 참조가 있으면 외부에서 더 이상 참조하지 않더라도 서로가 서로를 잡고 있어 count가 0이 안 됩니다. 결과:<br><br>1. <b>아무도 사용하지 않는 객체가 메모리에 남음</b> (메모리 누수)<br>2. 같은 시나리오를 반복하면 누수가 누적되어 메모리 사용량 증가<br>3. 최악의 경우 시스템이 앱을 메모리 부족으로 종료<br><br>중요: 단순 메모리 누수보다 <b>deinit이 호출되지 않는 것이 더 큰 문제</b>일 수 있습니다. deinit에서 정리하던 자원(파일, observer, Timer 등)이 영원히 정리 안 되니까요."},
+
+{q:"다음 코드의 retain cycle 문제를 분석해주세요 (closure)",level:"basic",freq:true,
+answer:"흔한 closure capture 문제:<pre>class VC: UIViewController {\n    var loader = DataLoader()\n    override func viewDidLoad() {\n        loader.onComplete = { result in\n            self.handleResult(result)  // ⚠️\n        }\n    }\n}</pre><b>분석:</b><br>• VC → loader (strong, 프로퍼티)<br>• loader → onComplete (strong, 프로퍼티)<br>• onComplete → self (strong, 캡처)<br>• self == VC → 순환 완성!<br><br><b>증상:</b> VC를 dismiss해도 deinit이 호출되지 않음. 화면 진입을 반복하면 메모리에 VC 인스턴스가 누적.<br><br><b>해결:</b><pre>loader.onComplete = { [weak self] result in\n    guard let self = self else { return }\n    self.handleResult(result)\n}</pre>"}
 ],
 
 quizzes:[
