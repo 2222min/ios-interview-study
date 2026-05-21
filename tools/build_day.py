@@ -11,7 +11,7 @@ if len(sys.argv) != 2:
 DAY = int(sys.argv[1])
 
 md_path = f"/Users/finda0603/Desktop/ios-interview-study/days/day{DAY:02d}.md"
-html_path = "/Users/finda0603/Desktop/AIDLC/ios-bigtech-interview-20-day-plan-deep.html"
+html_path = "/Users/finda0603/Desktop/ios-interview-study/index.html"
 
 with open(md_path, 'r', encoding='utf-8') as f:
     md = f.read()
@@ -232,7 +232,7 @@ if next_day_start > 0:
     abs_end = day_start + m.start()
 else:
     # Last day — find closing ];
-    m = re.search(r'\n\];\nvar cur', html[day_start:])
+    m = re.search(r'\n\];\s*\n\s*var cur', html[day_start:])
     if not m:
         print(f"ERROR: cannot find end marker")
         sys.exit(1)
