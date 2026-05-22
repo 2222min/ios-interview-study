@@ -194,7 +194,7 @@ js_questions = []
 for q in questions:
     qtext = q['q'].replace('\\', '\\\\').replace('"', '\\"')
     answer_html = md_to_html(q['answer'])
-    answer_html = answer_html.replace('\\', '\\\\').replace('"', '\\"')
+    answer_html = answer_html.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', '')
     qnum_int = int(q['num'])
     level = 'advanced' if qnum_int >= 8 else 'basic'
     freq = 'true' if qnum_int <= 12 else 'false'
